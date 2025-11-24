@@ -18,7 +18,8 @@ export async function login(formData: FormData) {
   })
 
   if (error) {
-    redirect('/error') // We'll fix this later, assuming success for now
+    console.error("LOGIN ERROR:", error.message); // <--- Add this
+    redirect('/error?message=' + encodeURIComponent(error.message));
   }
 
   // 3. Revalidate and send them home
@@ -39,7 +40,8 @@ export async function signup(formData: FormData) {
   })
 
   if (error) {
-    redirect('/error')
+    console.error("SIGNUP ERROR:", error.message);
+    redirect('/error?message=' + encodeURIComponent(error.message));
   }
 
   revalidatePath('/', 'layout')
