@@ -1,50 +1,67 @@
 import { notFound } from 'next/navigation';
-import { createClient as createBrowserClient } from '@supabase/supabase-js';
+import { createClient } from '@/utils/supabase/server'; // Use the SERVER client we made
 
-// setup basic client for simplicity while testing
-const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-// params is a Promise in next.js, so await it
 export default async function MarketPage({
-    params,
+  params,
 }: {
-    params: Promise<{ slug: string }>;
+  params: Promise<{ slug: string }>;
 }) {
-    const { slug } = await params;
-    // 1. get market info (ID and Name) based on the URL slug
-    const { data: market } = await supabase
-        .from('markets')
-        .select('id, name')
-        .eq('slug', slug)
-        .single();
+  const { slug } = await params;
+  const supabase = await createClient();
 
-    // 2. if no market found, return 404// If slug doesn't exist (e.g. localhost:3000/unicorn), show 404
-    if (!market) {
-        return <div className="text-white text-center mt-20">Market not found</div>;
-    }
-    // 2. Fetch the Items for THIS market only
-    const { data: items } = await supabase
-        .from('items')
-        .select('*')
-        .eq('market_id', market.id);
+  // 1. Get Market Info
+  // We log the error if it fails so you can see it in your VS Code terminal
+  const { data: market, error: marketError } = await supabase
+    .from('markets')
+    .select('id, name, brand_color')
+    .eq('slug', slug)
+    .single();
+
+  if (marketError || !market) {
+    console.error("Market Fetch Error:", marketError); // Debugging aid
     return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-2">Market Not Found</h1>
+          <p className="text-gray-400">Could not load market: {slug}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Fetch Items (RLS automatically filters this now!)
+  const { data: items, error: itemError } = await supabase
+    .from('items')
+    .select('*')
+    .eq('market_id', market.id);
+
+  return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
-      {/* Header */}
-      <div className="max-w-4xl mx-auto mb-8 border-b border-gray-700 pb-4">
-        <h1 className="text-3xl font-bold text-blue-400">{market.name}</h1>
-        <p className="text-gray-400 text-sm mt-1">Marketplace</p>
+      {/* Header with Dynamic Brand Color */}
+      <div 
+        className="max-w-4xl mx-auto mb-8 border-b border-gray-700 pb-4"
+        style={{ borderColor: market.brand_color || '#3b82f6' }} 
+      >
+        <h1 
+          className="text-3xl font-bold" 
+          style={{ color: market.brand_color || '#3b82f6' }}
+        >
+          {market.name}
+        </h1>
+        <p className="text-gray-400 text-sm mt-1">Authorized Access Only</p>
       </div>
 
       {/* Grid of Items */}
       <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
         {items?.map((item) => (
-          <div key={item.id} className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 shadow-lg">
-            {/* Placeholder Image */}
+          <div key={item.id} className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 shadow-lg group">
             <div className="h-48 bg-gray-700 flex items-center justify-center text-gray-500">
-              [Image]
+               {/* Use the image URL if available, otherwise placeholder */}
+               {item.image_url ? (
+                 <img src={item.image_url} alt={item.title} className="w-full h-full object-cover"/>
+               ) : (
+                 <span>No Image</span>
+               )}
             </div>
             
             <div className="p-4">
@@ -56,10 +73,6 @@ export default async function MarketPage({
             </div>
           </div>
         ))}
-
-        {items?.length === 0 && (
-          <p className="text-gray-500 col-span-3 text-center">No items listed yet.</p>
-        )}
       </div>
     </div>
   );
