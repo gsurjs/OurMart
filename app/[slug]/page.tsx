@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server'; // Use the SERVER client we made
+import Link from 'next/link';
+
 
 export default async function MarketPage({
   params,
@@ -8,6 +10,7 @@ export default async function MarketPage({
 }) {
   const { slug } = await params;
   const supabase = await createClient();
+  const { data: { user }} = await supabase.auth.getUser();
 
   // 1. Get Market Info
   // We log the error if it fails so you can see it in your VS Code terminal
@@ -28,6 +31,18 @@ export default async function MarketPage({
       </div>
     );
   }
+  // check membership, can sell?
+  let canSell = false;
+  if (user) {
+    const { data: membership } = await supabase
+        .from('market_members')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('market_id', market.id)
+        .single();
+    if (membership) canSell = true;
+  }
+
 
   // 2. Fetch Items (RLS automatically filters this now!)
   const { data: items, error: itemError } = await supabase
@@ -38,17 +53,31 @@ export default async function MarketPage({
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
       {/* Header with Dynamic Brand Color */}
+      {/* We use 'flex justify-between' to push the title left and button right */}
       <div 
-        className="max-w-4xl mx-auto mb-8 border-b border-gray-700 pb-4"
+        className="flex justify-between items-end max-w-4xl mx-auto mb-8 border-b border-gray-700 pb-4"
         style={{ borderColor: market.brand_color || '#3b82f6' }} 
       >
-        <h1 
-          className="text-3xl font-bold" 
-          style={{ color: market.brand_color || '#3b82f6' }}
-        >
-          {market.name}
-        </h1>
-        <p className="text-gray-400 text-sm mt-1">Authorized Access Only</p>
+        {/* Left Side: Title */}
+        <div>
+          <h1 
+            className="text-3xl font-bold" 
+            style={{ color: market.brand_color || '#3b82f6' }}
+          >
+            {market.name}
+          </h1>
+          <p className="text-gray-400 text-sm mt-1">Authorized Access Only</p>
+        </div>
+
+        {/* Right Side: The Sell Button (Conditional) */}
+        {canSell && (
+          <Link 
+            href={`/${slug}/sell`}
+            className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded font-bold transition flex items-center gap-2"
+          >
+            + Sell Item
+          </Link>
+        )}
       </div>
 
       {/* Grid of Items */}
